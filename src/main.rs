@@ -2,7 +2,7 @@
 extern crate simple_error;
 use std::io;
 use std::io::prelude::*;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 pub mod expr;
 pub mod lexer;

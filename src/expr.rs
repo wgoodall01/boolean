@@ -1,4 +1,3 @@
-use std::borrow::ToOwned;
 use std::cmp;
 use std::rc;
 use std::rc::Rc;
@@ -145,5 +144,48 @@ impl Expr {
                 (p, q) => biconditional(p, q),
             },
         }
+    }
+
+    /// Apply a function to this Expr's direct children.
+    ///
+    /// Note: this isn't necessarily mathematically valid.
+    pub fn map<F>(&self, map_fn: F) -> Expr
+    where
+        F: Fn(&Expr) -> Expr,
+    {
+        match self {
+            val @ Expr::True | val @ Expr::False | val @ Expr::Var(_) => val.clone(),
+            Expr::Not(ex) => not(map_fn(ex)),
+            Expr::And(ref lhs, ref rhs) => and(map_fn(lhs), map_fn(rhs)),
+            Expr::Or(ref lhs, ref rhs) => or(map_fn(lhs), map_fn(rhs)),
+            Expr::Implies(ref lhs, ref rhs) => implies(map_fn(lhs), map_fn(rhs)),
+            Expr::Biconditional(ref lhs, ref rhs) => biconditional(map_fn(lhs), map_fn(rhs)),
+        }
+    }
+
+    /// Replace Expr::Var(var_name) with clones of `value`, recursively.
+    pub fn substitute(&self, var_name: &str, value: &Expr) -> Expr {
+        match self {
+            Expr::Var(name) if *name == var_name => value.clone(),
+            val => val.map(move |ex| ex.substitute(var_name, value)),
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::super::parser;
+    use super::*;
+
+    #[test]
+    fn test_calculate_expr() {
+        let expr = parser::parse_str("a & (b | c) & !d").unwrap();
+        let result = expr
+            .substitute("a", &t())
+            .substitute("b", &t())
+            .substitute("c", &f())
+            .substitute("d", &f())
+            .eval();
+        assert_eq!(result, t());
     }
 }
