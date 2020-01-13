@@ -136,7 +136,7 @@ fn literal_false<'a>(input: &'a [Token]) -> ParseResult<'a, Expr> {
 
 fn identifier<'a>(input: &'a [Token]) -> ParseResult<'a, Expr> {
     match input.iter().next() {
-        Some(Token::Identifier(name)) => Ok((expr::id(name), &input[1..])),
+        Some(Token::Identifier(name)) => Ok((expr::var(name), &input[1..])),
         _ => Err(input),
     }
 }
@@ -226,7 +226,7 @@ mod test {
     #[test]
     fn test_parse_identifier() {
         assert_eq!(
-            Ok((expr::id("Test".into()), &vec![][..])),
+            Ok((expr::var("Test".into()), &vec![][..])),
             identifier(&tokenize("Test").unwrap())
         );
     }
@@ -266,7 +266,7 @@ mod test {
         let parser = pair(atom, atom);
         let ((r1, r2), rest) = parser.parse(input).unwrap();
         assert_eq!(r1, expr::f());
-        assert_eq!(r2, expr::id("Whatever"));
+        assert_eq!(r2, expr::var("Whatever"));
         assert_eq!(rest.len(), 0);
     }
 
@@ -316,7 +316,7 @@ mod test {
         let (result, rest) = expr(input).unwrap();
         assert_eq!(
             result,
-            expr::or(expr::id("a"), expr::and(expr::id("b"), expr::id("c")))
+            expr::or(expr::var("a"), expr::and(expr::var("b"), expr::var("c")))
         );
         assert_eq!(rest.len(), 0);
     }

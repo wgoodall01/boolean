@@ -12,6 +12,6 @@ pub fn main() {
         let line = input.unwrap();
         let input = lexer::tokenize(&line).unwrap();
         let parsed = parser::parse(input).unwrap();
-        println!("{:?}", parsed);
+        println!("{:?}", parsed.eval());
     }
 }
