@@ -1,10 +1,15 @@
 use super::expr;
 use super::expr::Expr;
-use super::lexer::Token;
+use super::lexer::{tokenize, Token};
 use simple_error::SimpleError;
 
 // Implementation of parser combinators in Rust adapted from
 // https://bodil.lol/parser-combinators/
+
+pub fn parse_str(input: &str) -> Result<Expr, SimpleError> {
+    let tokens = tokenize(input)?;
+    parse(tokens)
+}
 
 pub fn parse(input: Vec<Token>) -> Result<Expr, SimpleError> {
     match expr(input.as_slice()) {

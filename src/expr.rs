@@ -1,3 +1,6 @@
+use std::borrow::ToOwned;
+use std::cmp;
+use std::rc;
 use std::rc::Rc;
 
 #[derive(PartialEq, Debug, Clone)]
@@ -10,6 +13,12 @@ pub enum Expr {
     Or(Rc<Expr>, Rc<Expr>),
     Implies(Rc<Expr>, Rc<Expr>),
     Biconditional(Rc<Expr>, Rc<Expr>),
+}
+
+impl cmp::PartialEq<rc::Rc<Expr>> for Expr {
+    fn eq(&self, other: &rc::Rc<Expr>) -> bool {
+        *self == **other
+    }
 }
 
 pub fn and(a: Expr, b: Expr) -> Expr {
@@ -53,36 +62,86 @@ impl Expr {
             Expr::Var(name) => var(name),
 
             Expr::Not(ex) => match ex.eval() {
+                // Domination laws
                 Expr::True => f(),
                 Expr::False => t(),
-                held @ _ => held,
+
+                // Double negation
+                Expr::Not(val) => (*val).clone(),
+
+                // Unevaluated
+                held => not(held),
             },
 
             Expr::And(lhs, rhs) => match (lhs.eval(), rhs.eval()) {
+                // Domination Laws
                 (Expr::False, _) => f(),
                 (_, Expr::False) => f(),
-                (Expr::True, Expr::True) => t(),
+
+                // Identity Laws
+                (Expr::True, val) => val,
+                (val, Expr::True) => val,
+
+                // Idempotent Law
+                (ref l, ref r) if l == r => l.clone(),
+
+                // Negation law
+                (ref l, ref r) if l == &not(r.clone()).eval() => f(),
+                (ref l, ref r) if r == &not(l.clone()).eval() => f(),
+
+                // Absorbtion Law
+                (ref a, Expr::Or(ref b, _)) if a == b => a.clone(),
+                (ref a, Expr::Or(_, ref b)) if a == b => a.clone(),
+                (Expr::Or(ref b, _), ref a) if a == b => a.clone(),
+                (Expr::Or(_, ref b), ref a) if a == b => a.clone(),
+
+                // Unevaluated
                 (l, r) => and(l, r),
             },
 
             Expr::Or(lhs, rhs) => match (lhs.eval(), rhs.eval()) {
+                // Domination laws
                 (Expr::True, _) => t(),
                 (_, Expr::True) => t(),
-                (Expr::False, Expr::False) => f(),
+
+                // Identity laws
+                (Expr::False, val) => val,
+                (val, Expr::False) => val,
+
+                // Idempotent Law
+                (ref l, ref r) if l == r => l.clone(),
+
+                // Negation law
+                (ref l, ref r) if l == &not(r.clone()).eval() => f(),
+                (ref l, ref r) if r == &not(l.clone()).eval() => f(),
+
+                // Absorbtion Law
+                (ref a, Expr::And(ref b, _)) if a == b => a.clone(),
+                (ref a, Expr::And(_, ref b)) if a == b => a.clone(),
+                (Expr::And(ref b, _), ref a) if a == b => a.clone(),
+                (Expr::And(_, ref b), ref a) if a == b => a.clone(),
+
+                // Unevaluated
                 (l, r) => or(l, r),
             },
 
             Expr::Implies(lhs, rhs) => match (lhs.eval(), rhs.eval()) {
+                // Domination laws
                 (Expr::False, _) => t(),
                 (Expr::True, Expr::True) => t(),
+
+                // Unevaluated
                 (p, q) => implies(p, q),
             },
 
             Expr::Biconditional(lhs, rhs) => match (lhs.eval(), rhs.eval()) {
+                // Domination laws
                 (Expr::True, Expr::True) => t(),
                 (Expr::False, Expr::False) => t(),
                 (Expr::True, Expr::False) => f(),
                 (Expr::False, Expr::True) => f(),
+
+                // Unevaluated
                 (p, q) => biconditional(p, q),
             },
         }
