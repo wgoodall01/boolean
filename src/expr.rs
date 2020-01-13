@@ -1,47 +1,43 @@
-pub type Expr = Box<ExprValue>;
-
 #[derive(PartialEq, Debug)]
-pub enum ExprValue {
+pub enum Expr {
     True,
     False,
     Identifier(String),
-    Not(Expr),
-    And(Expr, Expr),
-    Or(Expr, Expr),
-    Implies(Expr, Expr),
-    Biconditional(Expr, Expr),
+    Not(Box<Expr>),
+    And(Box<Expr>, Box<Expr>),
+    Or(Box<Expr>, Box<Expr>),
+    Implies(Box<Expr>, Box<Expr>),
+    Biconditional(Box<Expr>, Box<Expr>),
 }
 
-// Some convenience functions, basically because Box::new() is so long and annoying.
-
 pub fn and(a: Expr, b: Expr) -> Expr {
-    Box::new(ExprValue::And(a, b))
+    Expr::And(Box::new(a), Box::new(b))
 }
 
 pub fn or(a: Expr, b: Expr) -> Expr {
-    Box::new(ExprValue::Or(a, b))
+    Expr::Or(Box::new(a), Box::new(b))
 }
 
 pub fn not(a: Expr) -> Expr {
-    Box::new(ExprValue::Not(a))
+    Expr::Not(Box::new(a))
 }
 
 pub fn implies(a: Expr, b: Expr) -> Expr {
-    Box::new(ExprValue::Implies(a, b))
+    Expr::Implies(Box::new(a), Box::new(b))
 }
 
 pub fn biconditional(a: Expr, b: Expr) -> Expr {
-    Box::new(ExprValue::Biconditional(a, b))
+    Expr::Biconditional(Box::new(a), Box::new(b))
 }
 
 pub fn id(name: &str) -> Expr {
-    Box::new(ExprValue::Identifier(name.into()))
+    Expr::Identifier(String::from(name))
 }
 
 pub fn t() -> Expr {
-    Box::new(ExprValue::True)
+    Expr::True
 }
 
 pub fn f() -> Expr {
-    Box::new(ExprValue::False)
+    Expr::False
 }
