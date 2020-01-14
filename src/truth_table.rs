@@ -1,6 +1,7 @@
 use super::expr::Expr;
 use simple_error::SimpleError;
 use std::collections::HashMap;
+use std::mem;
 
 #[derive(PartialEq, Debug)]
 pub struct TruthTable<'a> {
@@ -11,42 +12,38 @@ pub struct TruthTable<'a> {
     symbols: Vec<String>,
 
     // Bits representing the next pattern of values
-    next_pattern: u64,
-
-    // The last possible index, plus one.
-    max_pattern: u64,
+    min_pattern: usize, // inclusive
+    max_pattern: usize, // exclusive
 }
 
 impl<'a> TruthTable<'a> {
     pub fn new(expr: &'a Expr, symbols: Vec<String>) -> Result<TruthTable<'a>, SimpleError> {
-        if symbols.len() > 63 {
+        let n = symbols.len();
+
+        let max_bits = 8 * mem::size_of::<usize>();
+        if n > max_bits - 1 {
             // Don't want to deal with overflows, the MSB is used to check if we're done.
-            bail!("cannot create a truth table with more than 63 variables");
+            bail!(
+                "cannot create a truth table with more than {} variables",
+                max_bits
+            );
         }
 
         Ok(TruthTable {
-            next_pattern: 0b0,               // start with all false
-            max_pattern: 1 << symbols.len(), // 2^len
+            min_pattern: 0b0,    // start with all false
+            max_pattern: 1 << n, // End with all true
             expr,
             symbols,
         })
     }
-}
 
-impl<'a> Iterator for TruthTable<'a> {
-    type Item = (HashMap<String, Expr>, Expr);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.next_pattern == self.max_pattern {
-            return None;
-        }
-
+    fn produce(&self, index: usize) -> (HashMap<String, Expr>, Expr) {
         // Evaluate the expression here, to see if it can be simplified.
         let mut expr = self.expr.eval();
 
         // Iterate through the symbols back-to-front, shifting out the LSB of `pattern` each time.
-        let mut pattern = self.next_pattern;
         let mut value_map: HashMap<String, Expr> = HashMap::new();
+        let mut pattern = index;
         for symbol in self.symbols.iter().rev() {
             let value = match pattern & 0b1 {
                 0b0 => Expr::False,
@@ -59,16 +56,51 @@ impl<'a> Iterator for TruthTable<'a> {
             value_map.insert(symbol.clone(), value);
 
             // Shift over our pattern 1 bit to the right
-            pattern = pattern >> 1
+            pattern = pattern >> 1;
         }
 
         // Evaluate the modified expression
         expr = expr.eval();
 
-        // Advance the pattern by 1.
-        self.next_pattern += 1;
+        (value_map, expr)
+    }
+}
 
-        Some((value_map, expr))
+impl<'a> Iterator for TruthTable<'a> {
+    type Item = (HashMap<String, Expr>, Expr);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.min_pattern == self.max_pattern {
+            return None;
+        }
+
+        let val = self.produce(self.min_pattern);
+
+        // Advance the pattern by 1.
+        self.min_pattern += 1;
+
+        Some(val)
+    }
+}
+
+impl<'a> DoubleEndedIterator for TruthTable<'a> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        if self.min_pattern == self.max_pattern {
+            return None;
+        }
+
+        let val = self.produce(self.max_pattern - 1);
+
+        // Move the end back by 1.
+        self.max_pattern -= 1;
+
+        Some(val)
+    }
+}
+
+impl<'a> ExactSizeIterator for TruthTable<'a> {
+    fn len(&self) -> usize {
+        self.max_pattern - self.min_pattern
     }
 }
 
@@ -109,5 +141,38 @@ mod test {
             .map(|(_, val)| val)
             .collect();
         assert_eq!(result.len(), 1 << sym_count);
+    }
+
+    #[test]
+    fn test_truth_table_double_ended() {
+        let expr = implies(var("P"), var("Q"));
+        let mut values = TruthTable::new(&expr, vec!["P".into(), "Q".into()])
+            .unwrap()
+            .map(|(_, val)| val);
+        assert_eq!(values.len(), 4);
+        assert_eq!(values.next(), Some(t()));
+        assert_eq!(values.len(), 3);
+        assert_eq!(values.next_back(), Some(t()));
+        assert_eq!(values.next(), Some(t()));
+        assert_eq!(values.len(), 1);
+        assert_eq!(values.next_back(), Some(f()));
+        assert_eq!(values.next(), None);
+        assert_eq!(values.len(), 0);
+        assert_eq!(values.next_back(), None);
+        assert_eq!(values.len(), 0);
+    }
+
+    #[test]
+    fn test_truth_table_double_ended_2() {
+        let expr = implies(var("P"), var("Q"));
+        let mut values = TruthTable::new(&expr, vec!["P".into(), "Q".into()])
+            .unwrap()
+            .map(|(_, val)| val);
+        assert_eq!(values.next_back(), Some(t()));
+        assert_eq!(values.next_back(), Some(f()));
+        assert_eq!(values.next(), Some(t()));
+        assert_eq!(values.next(), Some(t()));
+        assert_eq!(values.next(), None);
+        assert_eq!(values.next_back(), None);
     }
 }
