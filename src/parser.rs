@@ -68,6 +68,33 @@ where
     }
 }
 
+fn one_or_more<'a, P, R>(parser: P) -> impl Parser<'a, Vec<R>>
+where
+    P: Parser<'a, R>,
+{
+    move |input: &'a [Token]| {
+        let mut list: Vec<R> = Vec::new();
+
+        // Parse first input
+        let (parsed, mut rest) = parser.parse(input)?;
+        list.push(parsed);
+
+        loop {
+            match parser.parse(rest) {
+                Ok((parsed, remainder)) => {
+                    list.push(parsed);
+                    rest = remainder;
+                }
+                Err(_) => {
+                    break;
+                }
+            }
+        }
+
+        Ok((list, rest))
+    }
+}
+
 /// infix(P1, P2, P3) returns a Parser matching the concatenation of P1, P2, and P3, returning
 /// (R1, R3).
 fn infix<'a, P1, P2, P3, R1, R2, R3>(
@@ -161,7 +188,7 @@ fn paren<'a>(input: &'a [Token]) -> ParseResult<'a, Expr> {
 }
 
 fn negation<'a>(input: &'a [Token]) -> ParseResult<'a, Expr> {
-    map(right(literal(&Token::Not), expr), |e| expr::not(e)).parse(input)
+    map(right(literal(&Token::Not), term), |e| expr::not(e)).parse(input)
 }
 
 fn term<'a>(input: &'a [Token]) -> ParseResult<'a, Expr> {
@@ -203,8 +230,20 @@ fn biconditional<'a>(input: &'a [Token]) -> ParseResult<'a, Expr> {
     either(bicond, implication).parse(input)
 }
 
+pub fn command<'a>(input: &'a [Token]) -> ParseResult<'a, Expr> {
+    let cmd = map(pair(identifier, one_or_more(term)), |(name_var, args)| {
+        let name = match name_var {
+            Expr::Var(name) => name,
+            _ => panic!("identifier() didn't retur Expr::Var(_)"),
+        };
+        expr::command(name, args)
+    });
+
+    either(cmd, biconditional).parse(input)
+}
+
 pub fn expr<'a>(input: &'a [Token]) -> ParseResult<'a, Expr> {
-    biconditional(input)
+    command(input)
 }
 
 #[cfg(test)]
@@ -322,6 +361,20 @@ mod test {
         assert_eq!(
             result,
             expr::or(expr::var("a"), expr::and(expr::var("b"), expr::var("c")))
+        );
+        assert_eq!(rest.len(), 0);
+    }
+
+    #[test]
+    fn test_parse_command() {
+        let input = &tokenize("TruthTable (a & b) a").unwrap();
+        let (result, rest) = expr(input).unwrap();
+        assert_eq!(
+            result,
+            expr::command(
+                "TruthTable".into(),
+                vec![expr::and(expr::var("a"), expr::var("b")), expr::var("a")]
+            )
         );
         assert_eq!(rest.len(), 0);
     }

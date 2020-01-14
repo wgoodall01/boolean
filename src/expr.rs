@@ -15,6 +15,7 @@ pub enum Expr {
     Or(Rc<Expr>, Rc<Expr>),
     Implies(Rc<Expr>, Rc<Expr>),
     Biconditional(Rc<Expr>, Rc<Expr>),
+    Command(String, Vec<Rc<Expr>>),
 }
 
 impl cmp::PartialEq<rc::Rc<Expr>> for Expr {
@@ -41,6 +42,10 @@ pub fn implies(a: Expr, b: Expr) -> Expr {
 
 pub fn biconditional(a: Expr, b: Expr) -> Expr {
     Expr::Biconditional(Rc::new(a), Rc::new(b))
+}
+
+pub fn command(name: String, args: Vec<Expr>) -> Expr {
+    Expr::Command(name, args.into_iter().map(|e| Rc::new(e)).collect())
 }
 
 pub fn var(name: &str) -> Expr {
@@ -149,6 +154,67 @@ impl Expr {
                 // Unevaluated
                 (p, q) => biconditional(p, q),
             },
+
+            Expr::Command(name, args) => match name.as_str() {
+                "Table" => {
+                    // TODO: make this work in a less nonsensical way
+                    if args.len() < 2 {
+                        println!("usage: TruthTable (a & b) a b");
+                        return var("ErrorBadUsage");
+                    }
+
+                    let expr = args.iter().next().unwrap();
+                    let parameters: Vec<String> = args[1..]
+                        .iter()
+                        .map(|val| match &**val {
+                            Expr::Var(name) => name.clone(),
+                            _ => {
+                                println!("can't use non-variable as argument");
+                                panic!("bad argument")
+                            }
+                        })
+                        .collect();
+
+                    expr.truth_table(parameters)
+                        .unwrap()
+                        .for_each(|(params, value)| println!("{:?} -> {:?}", params, value));
+
+                    var("StatusDone")
+                }
+                "Satisfy" => {
+                    // TODO: make this work in a less nonsensical way
+                    if args.len() != 1 {
+                        println!("usage: Satisfy (expr)");
+                        return var("ErrorBadUsage");
+                    }
+
+                    let expr = args.iter().next().unwrap();
+                    let symbols = expr.symbols().into_iter().collect();
+                    let sat = expr
+                        .truth_table(symbols)
+                        .unwrap()
+                        .filter(|(_, result)| result == &Expr::True)
+                        .map(|(vars, _)| vars)
+                        .next()
+                        .map(|params| {
+                            params
+                                .into_iter()
+                                .map(|(id, expr)| match expr {
+                                    Expr::True => var(&id),
+                                    Expr::False => not(var(&id)),
+                                    _ => panic!("truth table didn't use boolean value"),
+                                })
+                                .fold(t(), |a, b| and(b, a))
+                                .eval() // remove starting False
+                        });
+
+                    match sat {
+                        Some(expr) => expr,
+                        None => var("ErrorUnsatisfiable"),
+                    }
+                }
+                _ => var("ErrorUndefinedCommand"), // TODO: make this less ugly
+            },
         }
     }
 
@@ -166,6 +232,9 @@ impl Expr {
             Expr::Or(ref lhs, ref rhs) => or(map_fn(lhs), map_fn(rhs)),
             Expr::Implies(ref lhs, ref rhs) => implies(map_fn(lhs), map_fn(rhs)),
             Expr::Biconditional(ref lhs, ref rhs) => biconditional(map_fn(lhs), map_fn(rhs)),
+            Expr::Command(name, args) => {
+                command(name.clone(), args.into_iter().map(|e| map_fn(&e)).collect())
+            }
         }
     }
 
