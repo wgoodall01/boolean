@@ -7,6 +7,7 @@ use std::time::Instant;
 pub mod expr;
 pub mod lexer;
 pub mod parser;
+pub mod truth_table;
 
 pub fn main() {
     for input in io::stdin().lock().lines() {
