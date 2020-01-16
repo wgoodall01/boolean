@@ -1,0 +1,44 @@
+name: Rust CI
+
+on: [push]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v1
+    - name: Run tests
+      run: cargo test --verbose
+  
+  clippy_check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - run: rustup component add clippy
+      - uses: actions-rs/clippy-check@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          args: --all-features
+  
+  build_linux:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v1
+      - run: cargo build --release --target x86_64-unknown-linux-gnu
+      - uses: actions/upload-artifact@v1.0.0
+        with:
+          name: boolean_x86_64-unknown-linux-gnu
+          path: target/x86_64-unknown-linux-gnu/release/boolean
+    
+  build_windows:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v1
+      - run: cargo install cross
+      - run: cross build --release --target x86_64-pc-windows-gnu
+      - uses: actions/upload-artifact@v1.0.0
+        with:
+          name: boolean_x86_64-pc-windows-gnu
+          path: target/x86_64-pc-windows-gnu/release/boolean.exe
