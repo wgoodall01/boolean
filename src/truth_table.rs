@@ -1,4 +1,6 @@
+use super::expr;
 use super::expr::Expr;
+use itertools::Itertools;
 use simple_error::SimpleError;
 use std::collections::HashMap;
 use std::mem;
@@ -37,22 +39,22 @@ impl<'a> TruthTable<'a> {
         })
     }
 
-    fn produce(&self, index: usize) -> (HashMap<String, Expr>, Expr) {
+    fn produce(&self, index: usize) -> (HashMap<String, bool>, Expr) {
         // Evaluate the expression here, to see if it can be simplified.
         let mut expr = self.expr.eval();
 
         // Iterate through the symbols back-to-front, shifting out the LSB of `pattern` each time.
-        let mut value_map: HashMap<String, Expr> = HashMap::new();
+        let mut value_map: HashMap<String, bool> = HashMap::new();
         let mut pattern = index;
         for symbol in self.symbols.iter().rev() {
             let value = match pattern & 0b1 {
-                0b0 => Expr::False,
-                0b1 => Expr::True,
+                0b0 => false,
+                0b1 => true,
                 _ => panic!("impossible arithmetic occurred"),
             };
 
             // Substitute in the value, and set it in the map
-            expr = expr.substitute(symbol, &value);
+            expr = expr.substitute(symbol, &value.into());
             value_map.insert(symbol.clone(), value);
 
             // Shift over our pattern 1 bit to the right
@@ -66,8 +68,19 @@ impl<'a> TruthTable<'a> {
     }
 }
 
+pub fn hash_to_expr(params: HashMap<String, bool>) -> Expr {
+    params
+        .into_iter()
+        .map(|(id, val)| match val {
+            true => expr::var(&id),
+            false => expr::not(expr::var(&id)),
+        })
+        .fold1(expr::and)
+        .unwrap()
+}
+
 impl<'a> Iterator for TruthTable<'a> {
-    type Item = (HashMap<String, Expr>, Expr);
+    type Item = (HashMap<String, bool>, Expr);
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.min_pattern == self.max_pattern {
@@ -103,7 +116,6 @@ impl<'a> ExactSizeIterator for TruthTable<'a> {
         self.max_pattern - self.min_pattern
     }
 }
-
 #[cfg(test)]
 mod test {
     use super::super::expr::*;

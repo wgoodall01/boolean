@@ -1,7 +1,9 @@
-use super::truth_table::TruthTable;
+use super::truth_table::{hash_to_expr, TruthTable};
+use itertools::Itertools;
 use simple_error::SimpleError;
 use std::cmp;
 use std::collections::HashSet;
+use std::convert::From;
 use std::rc;
 use std::rc::Rc;
 
@@ -16,6 +18,15 @@ pub enum Expr {
     Implies(Rc<Expr>, Rc<Expr>),
     Biconditional(Rc<Expr>, Rc<Expr>),
     Command(String, Vec<Rc<Expr>>),
+}
+
+impl From<bool> for Expr {
+    fn from(val: bool) -> Expr {
+        match val {
+            true => t(),
+            false => f(),
+        }
+    }
 }
 
 impl cmp::PartialEq<rc::Rc<Expr>> for Expr {
@@ -46,6 +57,13 @@ pub fn biconditional(a: Expr, b: Expr) -> Expr {
 
 pub fn command(name: String, args: Vec<Expr>) -> Expr {
     Expr::Command(name, args.into_iter().map(|e| Rc::new(e)).collect())
+}
+
+pub fn error(args: Vec<&str>) -> Expr {
+    command(
+        "Error".into(),
+        args.into_iter().map(|n| var(n.into())).collect(),
+    )
 }
 
 pub fn var(name: &str) -> Expr {
@@ -157,35 +175,40 @@ impl Expr {
 
             Expr::Command(name, args) => match name.as_str() {
                 "Table" => {
-                    // TODO: make this work in a less nonsensical way
                     if args.len() < 2 {
-                        println!("usage: TruthTable (a & b) a b");
-                        return var("ErrorBadUsage");
+                        return error(vec!["BadUsage", "InvalidArgCount"]);
                     }
 
                     let expr = args.iter().next().unwrap();
-                    let parameters: Vec<String> = args[1..]
+                    let parameters = &args[1..];
+
+                    // Assert that parameters contains only Var-s:
+                    let only_vars = parameters.iter().all(|ex| match **ex {
+                        Expr::Var(_) => true,
+                        _ => false,
+                    });
+                    if !only_vars {
+                        return error(vec!["BadUsage", "ParameterNotVariable"]);
+                    }
+
+                    // Collect the variable names into Strings
+                    let param_names: Vec<String> = parameters
                         .iter()
-                        .map(|val| match &**val {
-                            Expr::Var(name) => name.clone(),
-                            _ => {
-                                println!("can't use non-variable as argument");
-                                panic!("bad argument")
-                            }
+                        .map(|val| match **val {
+                            Expr::Var(ref name) => name.clone(),
+                            _ => panic!("impossible"),
                         })
                         .collect();
 
-                    expr.truth_table(parameters)
+                    expr.truth_table(param_names)
                         .unwrap()
-                        .for_each(|(params, value)| println!("{:?} -> {:?}", params, value));
-
-                    var("StatusDone")
+                        .map(|(params, ex)| implies(hash_to_expr(params), ex))
+                        .fold1(|a, b| or(a, b))
+                        .unwrap_or(false.into())
                 }
                 "Satisfy" => {
-                    // TODO: make this work in a less nonsensical way
                     if args.len() != 1 {
-                        println!("usage: Satisfy (expr)");
-                        return var("ErrorBadUsage");
+                        return error(vec!["BadUsage"]);
                     }
 
                     let expr = args.iter().next().unwrap();
@@ -196,24 +219,14 @@ impl Expr {
                         .filter(|(_, result)| result == &Expr::True)
                         .map(|(vars, _)| vars)
                         .next()
-                        .map(|params| {
-                            params
-                                .into_iter()
-                                .map(|(id, expr)| match expr {
-                                    Expr::True => var(&id),
-                                    Expr::False => not(var(&id)),
-                                    _ => panic!("truth table didn't use boolean value"),
-                                })
-                                .fold(t(), |a, b| and(b, a))
-                                .eval() // remove starting False
-                        });
+                        .map(hash_to_expr);
 
                     match sat {
                         Some(expr) => expr,
-                        None => var("ErrorUnsatisfiable"),
+                        None => error(vec!["Unsatisfiable"]),
                     }
                 }
-                _ => var("ErrorUndefinedCommand"), // TODO: make this less ugly
+                "Inert" | "Error" | _ => Expr::Command(name.clone(), args.clone()),
             },
         }
     }
