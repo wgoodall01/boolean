@@ -5,21 +5,21 @@ use std::cmp;
 use std::collections::HashSet;
 use std::convert::From;
 use std::fmt;
+use std::mem;
 use std::rc;
 use std::rc::Rc;
 
 #[derive(PartialEq, PartialOrd, Debug, Clone)]
 pub enum Expr {
-    // Note: listed in order of increasing operator precedence.
-    Command(String, Vec<Rc<Expr>>),
-    Biconditional(Rc<Expr>, Rc<Expr>),
-    Implies(Rc<Expr>, Rc<Expr>),
-    Or(Rc<Expr>, Rc<Expr>),
-    And(Rc<Expr>, Rc<Expr>),
-    Not(Rc<Expr>),
-    Var(String),
-    False,
     True,
+    False,
+    Var(String),
+    Not(Rc<Expr>),
+    And(Rc<Expr>, Rc<Expr>),
+    Or(Rc<Expr>, Rc<Expr>),
+    Implies(Rc<Expr>, Rc<Expr>),
+    Biconditional(Rc<Expr>, Rc<Expr>),
+    Command(String, Vec<Rc<Expr>>),
 }
 
 impl From<bool> for Expr {
@@ -233,6 +233,20 @@ impl Expr {
         }
     }
 
+    pub fn precedence(&self) -> u32 {
+        match self {
+            Expr::True => !0,
+            Expr::False => !0,
+            Expr::Var(_) => (!0) - 10,
+            Expr::Not(_) => 60,
+            Expr::And(_, _) => 50,
+            Expr::Or(_, _) => 40,
+            Expr::Implies(_, _) => 35,
+            Expr::Biconditional(_, _) => 30,
+            Expr::Command(_, _) => 20,
+        }
+    }
+
     /// Apply a function to this Expr's direct children.
     ///
     /// Note: this isn't necessarily mathematically valid.
@@ -311,7 +325,7 @@ impl fmt::Display for Expr {
 }
 
 fn paren(outer: &Expr, inner: &Expr) -> String {
-    if *outer < *inner {
+    if outer.precedence() <= inner.precedence() {
         format!("{}", inner)
     } else {
         format!("({})", inner)
@@ -349,5 +363,33 @@ mod test {
         let rhs = f();
         let expr = or(lhs.clone(), rhs.clone());
         assert_eq!(paren(&expr, &lhs), "T & F");
+    }
+
+    #[test]
+    fn test_display_parse() {
+        let exprs = vec![
+            t(),
+            f(),
+            not(t()),
+            and(or(t(), f()), t()),
+            implies(and(or(t(), f()), t()), f()),
+            implies(biconditional(t(), f()), f()),
+            command(
+                "Inert".into(),
+                vec![
+                    and(or(t(), f()), t()),
+                    f(),
+                    biconditional(implies(t(), f()), implies(t(), biconditional(t(), f()))),
+                ],
+            ),
+            or(t(), or(t(), or(t(), t()))),
+        ];
+
+        for expr in exprs {
+            let repr = format!("{}", expr);
+            let parsed = parser::parse_str(&repr).unwrap();
+            println!("{}", repr);
+            assert_eq!(parsed, expr);
+        }
     }
 }
