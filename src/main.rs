@@ -14,7 +14,13 @@ pub fn main() {
         let input = input.unwrap();
 
         let pre_parse = Instant::now();
-        let parsed = parser::parse_str(&input).unwrap();
+        let parsed = match parser::parse_str(&input) {
+            Ok(parsed) => parsed,
+            Err(err) => {
+                println!("invalid: {}\n", err);
+                continue;
+            }
+        };
         let parse_dur = pre_parse.elapsed();
 
         let pre_eval = Instant::now();
