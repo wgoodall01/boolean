@@ -21,7 +21,7 @@ pub fn main() {
         let evaluated = parsed.eval();
         let eval_dur = pre_eval.elapsed();
 
-        println!("{:?}", evaluated);
+        println!("{}", evaluated);
         if parse_dur.as_millis() + eval_dur.as_millis() > 200 {
             println!(
                 "parse:{}ms eval:{}ms",

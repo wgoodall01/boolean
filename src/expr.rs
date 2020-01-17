@@ -4,20 +4,22 @@ use simple_error::SimpleError;
 use std::cmp;
 use std::collections::HashSet;
 use std::convert::From;
+use std::fmt;
 use std::rc;
 use std::rc::Rc;
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, PartialOrd, Debug, Clone)]
 pub enum Expr {
-    True,
-    False,
-    Var(String),
-    Not(Rc<Expr>),
-    And(Rc<Expr>, Rc<Expr>),
-    Or(Rc<Expr>, Rc<Expr>),
-    Implies(Rc<Expr>, Rc<Expr>),
-    Biconditional(Rc<Expr>, Rc<Expr>),
+    // Note: listed in order of increasing operator precedence.
     Command(String, Vec<Rc<Expr>>),
+    Biconditional(Rc<Expr>, Rc<Expr>),
+    Implies(Rc<Expr>, Rc<Expr>),
+    Or(Rc<Expr>, Rc<Expr>),
+    And(Rc<Expr>, Rc<Expr>),
+    Not(Rc<Expr>),
+    Var(String),
+    False,
+    True,
 }
 
 impl From<bool> for Expr {
@@ -285,6 +287,37 @@ impl Expr {
     }
 }
 
+impl fmt::Display for Expr {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Expr::True => write!(f, "T"),
+            Expr::False => write!(f, "F"),
+            Expr::Var(name) => write!(f, "{}", name),
+            Expr::Not(ex) => write!(f, "!{}", paren(self, ex)),
+            Expr::And(lhs, rhs) => write!(f, "{} & {}", paren(self, lhs), paren(self, rhs)),
+            Expr::Or(lhs, rhs) => write!(f, "{} | {}", paren(self, lhs), paren(self, rhs)),
+            Expr::Implies(lhs, rhs) => write!(f, "{} => {}", paren(self, lhs), paren(self, rhs)),
+            Expr::Biconditional(lhs, rhs) => {
+                write!(f, "{} <=> {}", paren(self, lhs), paren(self, rhs))
+            }
+            Expr::Command(cmd, args) => write!(
+                f,
+                "{} {}",
+                cmd,
+                args.iter().map(|ex| paren(&not(t()), ex)).format(" ")
+            ),
+        }
+    }
+}
+
+fn paren(outer: &Expr, inner: &Expr) -> String {
+    if *outer < *inner {
+        format!("{}", inner)
+    } else {
+        format!("({})", inner)
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::super::parser;
@@ -300,5 +333,21 @@ mod test {
             .substitute("d", &f())
             .eval();
         assert_eq!(result, t());
+    }
+
+    #[test]
+    fn test_paren_inner_or() {
+        let lhs = or(t(), f());
+        let rhs = f();
+        let expr = and(lhs.clone(), rhs.clone());
+        assert_eq!(paren(&expr, &lhs), "(T | F)");
+    }
+
+    #[test]
+    fn test_paren_inner_and() {
+        let lhs = and(t(), f());
+        let rhs = f();
+        let expr = or(lhs.clone(), rhs.clone());
+        assert_eq!(paren(&expr, &lhs), "T & F");
     }
 }
