@@ -3,6 +3,7 @@ use super::expr::Expr;
 use itertools::Itertools;
 use simple_error::SimpleError;
 use std::collections::HashMap;
+use std::hash;
 use std::mem;
 
 #[derive(PartialEq, Debug)]
@@ -58,7 +59,7 @@ impl<'a> TruthTable<'a> {
             value_map.insert(symbol.clone(), value);
 
             // Shift over our pattern 1 bit to the right
-            pattern = pattern >> 1;
+            pattern >>= 1;
         }
 
         // Evaluate the modified expression
@@ -68,12 +69,15 @@ impl<'a> TruthTable<'a> {
     }
 }
 
-pub fn hash_to_expr(params: HashMap<String, bool>) -> Expr {
+pub fn hash_to_expr<S: hash::BuildHasher>(params: HashMap<String, bool, S>) -> Expr {
     params
         .into_iter()
-        .map(|(id, val)| match val {
-            true => expr::var(&id),
-            false => expr::not(expr::var(&id)),
+        .map(|(id, val)| {
+            if val {
+                expr::var(&id)
+            } else {
+                expr::not(expr::var(&id))
+            }
         })
         .fold1(expr::and)
         .unwrap()

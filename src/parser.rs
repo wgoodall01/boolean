@@ -79,16 +79,9 @@ where
         let (parsed, mut rest) = parser.parse(input)?;
         list.push(parsed);
 
-        loop {
-            match parser.parse(rest) {
-                Ok((parsed, remainder)) => {
-                    list.push(parsed);
-                    rest = remainder;
-                }
-                Err(_) => {
-                    break;
-                }
-            }
+        while let Ok((parsed, remainder)) = parser.parse(rest) {
+            list.push(parsed);
+            rest = remainder;
         }
 
         Ok((list, rest))
@@ -158,28 +151,28 @@ fn literal<'a>(literal: &'a Token) -> impl Parser<'a, ()> {
     }
 }
 
-fn literal_true<'a>(input: &'a [Token]) -> ParseResult<'a, Expr> {
+fn literal_true(input: &[Token]) -> ParseResult<'_, Expr> {
     map(literal(&Token::True), |_| expr::t()).parse(input)
 }
 
-fn literal_false<'a>(input: &'a [Token]) -> ParseResult<'a, Expr> {
+fn literal_false(input: &[Token]) -> ParseResult<'_, Expr> {
     map(literal(&Token::False), |_| expr::f()).parse(input)
 }
 
-fn identifier<'a>(input: &'a [Token]) -> ParseResult<'a, Expr> {
+fn identifier(input: &[Token]) -> ParseResult<'_, Expr> {
     match input.iter().next() {
         Some(Token::Identifier(name)) => Ok((expr::var(name), &input[1..])),
         _ => Err(input),
     }
 }
 
-fn atom<'a>(input: &'a [Token]) -> ParseResult<'a, Expr> {
+fn atom(input: &[Token]) -> ParseResult<'_, Expr> {
     let bools = either(literal_true, literal_false);
     let atoms = either(bools, identifier);
-    return atoms.parse(input);
+    atoms.parse(input)
 }
 
-fn paren<'a>(input: &'a [Token]) -> ParseResult<'a, Expr> {
+fn paren(input: &[Token]) -> ParseResult<'_, Expr> {
     left(
         right(literal(&Token::OpenParen), expr),
         literal(&Token::ClosedParen),
@@ -187,15 +180,15 @@ fn paren<'a>(input: &'a [Token]) -> ParseResult<'a, Expr> {
     .parse(input)
 }
 
-fn negation<'a>(input: &'a [Token]) -> ParseResult<'a, Expr> {
-    map(right(literal(&Token::Not), term), |e| expr::not(e)).parse(input)
+fn negation(input: &[Token]) -> ParseResult<'_, Expr> {
+    map(right(literal(&Token::Not), term), expr::not).parse(input)
 }
 
-fn term<'a>(input: &'a [Token]) -> ParseResult<'a, Expr> {
+fn term(input: &[Token]) -> ParseResult<'_, Expr> {
     first_of!(paren, negation, atom).parse(input)
 }
 
-fn conjunction<'a>(input: &'a [Token]) -> ParseResult<'a, Expr> {
+fn conjunction(input: &[Token]) -> ParseResult<'_, Expr> {
     let and = map(infix(term, literal(&Token::And), conjunction), |(l, r)| {
         expr::and(l, r)
     });
@@ -203,7 +196,7 @@ fn conjunction<'a>(input: &'a [Token]) -> ParseResult<'a, Expr> {
     either(and, term).parse(input)
 }
 
-fn disjunction<'a>(input: &'a [Token]) -> ParseResult<'a, Expr> {
+fn disjunction(input: &[Token]) -> ParseResult<'_, Expr> {
     let or = map(
         infix(conjunction, literal(&Token::Or), disjunction),
         |(l, r)| expr::or(l, r),
@@ -212,7 +205,7 @@ fn disjunction<'a>(input: &'a [Token]) -> ParseResult<'a, Expr> {
     either(or, conjunction).parse(input)
 }
 
-fn implication<'a>(input: &'a [Token]) -> ParseResult<'a, Expr> {
+fn implication(input: &[Token]) -> ParseResult<'_, Expr> {
     let implies = map(
         infix(disjunction, literal(&Token::Implies), implication),
         |(l, r)| expr::implies(l, r),
@@ -221,7 +214,7 @@ fn implication<'a>(input: &'a [Token]) -> ParseResult<'a, Expr> {
     either(implies, disjunction).parse(input)
 }
 
-fn biconditional<'a>(input: &'a [Token]) -> ParseResult<'a, Expr> {
+fn biconditional(input: &[Token]) -> ParseResult<'_, Expr> {
     let bicond = map(
         infix(implication, literal(&Token::Biconditional), biconditional),
         |(l, r)| expr::biconditional(l, r),
@@ -230,7 +223,7 @@ fn biconditional<'a>(input: &'a [Token]) -> ParseResult<'a, Expr> {
     either(bicond, implication).parse(input)
 }
 
-pub fn command<'a>(input: &'a [Token]) -> ParseResult<'a, Expr> {
+pub fn command(input: &[Token]) -> ParseResult<'_, Expr> {
     let cmd = map(pair(identifier, one_or_more(term)), |(name_var, args)| {
         let name = match name_var {
             Expr::Var(name) => name,
@@ -242,7 +235,7 @@ pub fn command<'a>(input: &'a [Token]) -> ParseResult<'a, Expr> {
     either(cmd, biconditional).parse(input)
 }
 
-pub fn expr<'a>(input: &'a [Token]) -> ParseResult<'a, Expr> {
+pub fn expr(input: &[Token]) -> ParseResult<'_, Expr> {
     command(input)
 }
 

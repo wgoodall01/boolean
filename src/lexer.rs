@@ -20,7 +20,7 @@ pub fn tokenize(expr: &str) -> Result<Vec<Token>, SimpleError> {
 
     let mut rest: &str = expr;
 
-    while rest.len() > 0 {
+    while !rest.is_empty() {
         // Ignore whitespace
         if let " " | "\t" | "\n" = &rest[0..1] {
             rest = &rest[1..];
@@ -112,5 +112,4 @@ mod test {
         assert!(Token::And < Token::Or);
         assert!(Token::Identifier("".into()) < Token::And);
     }
-
 }

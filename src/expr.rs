@@ -5,7 +5,6 @@ use std::cmp;
 use std::collections::HashSet;
 use std::convert::From;
 use std::fmt;
-use std::mem;
 use std::rc;
 use std::rc::Rc;
 
@@ -24,9 +23,10 @@ pub enum Expr {
 
 impl From<bool> for Expr {
     fn from(val: bool) -> Expr {
-        match val {
-            true => t(),
-            false => f(),
+        if val {
+            t()
+        } else {
+            f()
         }
     }
 }
@@ -58,14 +58,11 @@ pub fn biconditional(a: Expr, b: Expr) -> Expr {
 }
 
 pub fn command(name: String, args: Vec<Expr>) -> Expr {
-    Expr::Command(name, args.into_iter().map(|e| Rc::new(e)).collect())
+    Expr::Command(name, args.into_iter().map(Rc::new).collect())
 }
 
 pub fn error(args: Vec<&str>) -> Expr {
-    command(
-        "Error".into(),
-        args.into_iter().map(|n| var(n.into())).collect(),
-    )
+    command("Error".into(), args.into_iter().map(var).collect())
 }
 
 pub fn var(name: &str) -> Expr {
@@ -205,8 +202,8 @@ impl Expr {
                     expr.truth_table(param_names)
                         .unwrap()
                         .map(|(params, ex)| implies(hash_to_expr(params), ex))
-                        .fold1(|a, b| or(a, b))
-                        .unwrap_or(false.into())
+                        .fold1(or)
+                        .unwrap_or_else(|| false.into())
                 }
                 "Satisfy" => {
                     if args.len() != 1 {
@@ -262,7 +259,7 @@ impl Expr {
             Expr::Implies(ref lhs, ref rhs) => implies(map_fn(lhs), map_fn(rhs)),
             Expr::Biconditional(ref lhs, ref rhs) => biconditional(map_fn(lhs), map_fn(rhs)),
             Expr::Command(name, args) => {
-                command(name.clone(), args.into_iter().map(|e| map_fn(&e)).collect())
+                command(name.clone(), args.iter().map(|e| map_fn(e)).collect())
             }
         }
     }
