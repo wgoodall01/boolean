@@ -1,13 +1,8 @@
-#[macro_use]
-extern crate simple_error;
 use std::io;
 use std::io::prelude::*;
 use std::time::Instant;
 
-pub mod expr;
-pub mod lexer;
-pub mod parser;
-pub mod truth_table;
+use boolean::parser;
 
 pub fn main() {
     for input in io::stdin().lock().lines() {
