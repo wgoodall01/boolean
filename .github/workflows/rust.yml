@@ -48,7 +48,14 @@ jobs:
     needs: test
     steps:
       - uses: actions/checkout@v1
+      - name: Cache $CARGO_HOME/bin
+        id: cache_cargo_bin
+        uses: actions/cache@v1
+        with:
+          path: ~/.cargo/bin
+          key: ${{ runner.os }}-cargo-bin
       - run: cargo install cargo-web
+        if: steps.cache_cargo_bin.outputs.cache-hit != 'true'
       - working-directory: www
         run: make web
       - uses: actions/upload-artifact@v1.0.0
