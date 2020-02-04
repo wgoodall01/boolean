@@ -8,6 +8,10 @@ pub fn main() {
     reader.set_prompt("> ").unwrap();
 
     while let ReadResult::Input(input) = reader.read_line().unwrap() {
+        if input == ".exit" {
+            break;
+        }
+
         let pre_parse = Instant::now();
         let parsed = match parser::parse_str(&input) {
             Ok(parsed) => parsed,

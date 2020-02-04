@@ -17,8 +17,8 @@ deploy-production: out/index.html node_modules
 
 public/boolean-www.js: 
 	cargo web build --release
-	cp target/wasm32-unknown-unknown/release/boolean-www.js public/boolean-www.js
-	cp target/wasm32-unknown-unknown/release/boolean-www.wasm public/boolean-www.wasm
+	cp ../target/wasm32-unknown-unknown/release/boolean-www.js public/boolean-www.js
+	cp ../target/wasm32-unknown-unknown/release/boolean-www.wasm public/boolean-www.wasm
 
 node_modules: package.json yarn.lock
 	yarn install --dev --frozen-lockfile
