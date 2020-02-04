@@ -1,13 +1,13 @@
-use std::io;
-use std::io::prelude::*;
+use linefeed::{Interface, ReadResult};
 use std::time::Instant;
 
 use boolean::parser;
 
 pub fn main() {
-    for input in io::stdin().lock().lines() {
-        let input = input.unwrap();
+    let reader = Interface::new("boolean-repl").unwrap();
+    reader.set_prompt("> ").unwrap();
 
+    while let ReadResult::Input(input) = reader.read_line().unwrap() {
         let pre_parse = Instant::now();
         let parsed = match parser::parse_str(&input) {
             Ok(parsed) => parsed,

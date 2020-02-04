@@ -9,3 +9,4 @@ edition = "2018"
 [dependencies]
 simple-error = "0.2.1"
 itertools = "0.8.2"
+linefeed = "0.6.0"
