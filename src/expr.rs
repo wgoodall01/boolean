@@ -174,34 +174,31 @@ impl Expr {
 
             Expr::Command(name, args) => match name.as_str() {
                 "Table" => {
-                    if args.len() < 2 {
+                    if args.len() < 1 {
                         return error(vec!["BadUsage", "InvalidArgCount"]);
                     }
 
                     let expr = args.iter().next().unwrap();
-                    let parameters = &args[1..];
 
-                    // Assert that parameters contains only Var-s:
-                    let only_vars = parameters.iter().all(|ex| match **ex {
-                        Expr::Var(_) => true,
-                        _ => false,
-                    });
-                    if !only_vars {
-                        return error(vec!["BadUsage", "ParameterNotVariable"]);
-                    }
-
-                    // Collect the variable names into Strings
-                    let param_names: Vec<String> = parameters
-                        .iter()
-                        .map(|val| match **val {
-                            Expr::Var(ref name) => name.clone(),
-                            _ => panic!("impossible"),
-                        })
-                        .collect();
+                    let param_names: Vec<String> = if args.len() == 1 {
+                        expr.symbols()
+                    } else {
+                        let mut names: Vec<String> = Vec::new();
+                        for arg in &args[1..] {
+                            match &**arg {
+                                Expr::Var(name) => names.push(name.clone()),
+                                _ => return error(vec!["BadUsage", "ParameterNotVariable"]),
+                            }
+                        }
+                        names
+                    };
 
                     expr.truth_table(param_names)
                         .unwrap()
-                        .map(|(params, ex)| implies(hash_to_expr(params), ex))
+                        .filter_map(|(params, ex)| match ex {
+                            Expr::True => Some(hash_to_expr(params)),
+                            _ => None,
+                        })
                         .fold1(or)
                         .unwrap_or_else(|| false.into())
                 }
@@ -211,9 +208,8 @@ impl Expr {
                     }
 
                     let expr = args.iter().next().unwrap();
-                    let symbols = expr.symbols().into_iter().collect();
                     let sat = expr
-                        .truth_table(symbols)
+                        .truth_table(expr.symbols())
                         .unwrap()
                         .filter(|(_, result)| result == &Expr::True)
                         .map(|(vars, _)| vars)
@@ -272,11 +268,11 @@ impl Expr {
         }
     }
 
-    /// Get a HashSet of all symbols used in the expression
-    pub fn symbols(&self) -> HashSet<String> {
+    /// Get a list of all symbols used in the expression
+    pub fn symbols(&self) -> Vec<String> {
         let mut symbols: HashSet<String> = HashSet::new();
         self.insert_symbols(&mut symbols);
-        symbols
+        symbols.into_iter().collect()
     }
 
     fn insert_symbols(&self, set: &mut HashSet<String>) {
