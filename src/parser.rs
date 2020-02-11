@@ -142,10 +142,10 @@ macro_rules! first_of {
         )
     }
 
-fn literal<'a>(literal: &'a Token) -> impl Parser<'a, ()> {
-    move |input: &'a [Token]| -> ParseResult<'a, ()> {
+fn literal<'a>(literal: &'a Token) -> impl Parser<'a, &'a Token> {
+    move |input: &'a [Token]| -> ParseResult<'a, &'a Token> {
         match input.iter().next() {
-            Some(tok) if tok == literal => Ok(((), &input[1..])),
+            Some(tok) if tok == literal => Ok((tok, &input[1..])),
             _ => Err(input),
         }
     }
@@ -166,9 +166,15 @@ fn identifier(input: &[Token]) -> ParseResult<'_, Expr> {
     }
 }
 
+fn literal_str(input: &[Token]) -> ParseResult<'_, Expr> {
+    match input.iter().next() {
+        Some(Token::Str(name)) => Ok((expr::str(name), &input[1..])),
+        _ => Err(input),
+    }
+}
+
 fn atom(input: &[Token]) -> ParseResult<'_, Expr> {
-    let bools = either(literal_true, literal_false);
-    let atoms = either(bools, identifier);
+    let atoms = first_of!(literal_true, literal_false, identifier, literal_str);
     atoms.parse(input)
 }
 

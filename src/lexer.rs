@@ -6,6 +6,7 @@ pub enum Token {
     True,               // 'T'
     False,              // 'F'
     Identifier(String), // Alphanumeric chars
+    Str(String),        // Literal string
     OpenParen,          // '('
     ClosedParen,        // ')'
     Not,                // '!'
@@ -54,7 +55,15 @@ pub fn tokenize(expr: &str) -> Result<Vec<Token>, SimpleError> {
             continue;
         }
 
-        // Then, look for possible identifiers.
+        // Scan strings
+        if rest.starts_with("\"") {
+            let contents: String = rest.chars().skip(1).take_while(|c| *c != '"').collect();
+            rest = &rest[contents.len() + 2..];
+            tokens.push(Token::Str(contents));
+            continue;
+        }
+
+        // Finally, look for possible identifiers.
         let ident: String = rest.chars().take_while(|c| c.is_alphanumeric()).collect();
 
         tokens.push(match ident.as_str() {

@@ -19,6 +19,7 @@ pub enum Expr {
     Implies(Rc<Expr>, Rc<Expr>),
     Biconditional(Rc<Expr>, Rc<Expr>),
     Command(String, Vec<Rc<Expr>>),
+    Str(String),
 }
 
 impl From<bool> for Expr {
@@ -62,11 +63,15 @@ pub fn command(name: String, args: Vec<Expr>) -> Expr {
 }
 
 pub fn error(args: Vec<&str>) -> Expr {
-    command("Error".into(), args.into_iter().map(var).collect())
+    command("Error".into(), args.into_iter().map(str).collect())
 }
 
 pub fn var(name: &str) -> Expr {
     Expr::Var(String::from(name))
+}
+
+pub fn str(name: &str) -> Expr {
+    Expr::Str(String::from(name))
 }
 
 pub fn t() -> Expr {
@@ -84,6 +89,7 @@ impl Expr {
             Expr::True => t(),
             Expr::False => f(),
             Expr::Var(name) => var(name),
+            Expr::Str(name) => str(name),
 
             Expr::Not(ex) => match ex.eval() {
                 // Domination laws
@@ -178,7 +184,7 @@ impl Expr {
                         return error(vec!["BadUsage", "InvalidArgCount"]);
                     }
 
-                    let expr = args.iter().next().unwrap();
+                    let expr: &Expr = Rc::as_ref(args.iter().next().unwrap());
 
                     let param_names: Vec<String> = if args.len() == 1 {
                         expr.symbols()
@@ -193,6 +199,11 @@ impl Expr {
                         names
                     };
 
+                    if param_names.is_empty() {
+                        // If there are no parameters, we can't make a truth table.
+                        return expr.clone();
+                    }
+
                     expr.truth_table(param_names)
                         .unwrap()
                         .filter_map(|(params, ex)| match ex {
@@ -200,7 +211,7 @@ impl Expr {
                             _ => None,
                         })
                         .fold1(or)
-                        .unwrap_or_else(|| false.into())
+                        .unwrap_or_else(|| expr.clone())
                 }
                 "Satisfy" => {
                     if args.len() != 1 {
@@ -221,6 +232,9 @@ impl Expr {
                         None => error(vec!["Unsatisfiable"]),
                     }
                 }
+                "Debug" => {
+                    return str(format!("{:?}", args).as_str());
+                }
                 "Inert" | "Error" | _ => Expr::Command(name.clone(), args.clone()),
             },
         }
@@ -231,6 +245,7 @@ impl Expr {
             Expr::True => !0,
             Expr::False => !0,
             Expr::Var(_) => (!0) - 10,
+            Expr::Str(_) => (!0) - 10,
             Expr::Not(_) => 60,
             Expr::And(_, _) => 50,
             Expr::Or(_, _) => 40,
@@ -248,7 +263,9 @@ impl Expr {
         F: FnMut(&Expr) -> Expr,
     {
         match self {
-            val @ Expr::True | val @ Expr::False | val @ Expr::Var(_) => val.clone(),
+            val @ Expr::True | val @ Expr::False | val @ Expr::Var(_) | val @ Expr::Str(_) => {
+                val.clone()
+            }
             Expr::Not(ex) => not(map_fn(ex)),
             Expr::And(ref lhs, ref rhs) => and(map_fn(lhs), map_fn(rhs)),
             Expr::Or(ref lhs, ref rhs) => or(map_fn(lhs), map_fn(rhs)),
@@ -300,6 +317,7 @@ impl fmt::Display for Expr {
             Expr::True => write!(f, "T"),
             Expr::False => write!(f, "F"),
             Expr::Var(name) => write!(f, "{}", name),
+            Expr::Str(name) => write!(f, "\"{}\"", name),
             Expr::Not(ex) => write!(f, "!{}", paren(self, ex)),
             Expr::And(lhs, rhs) => write!(f, "{} & {}", paren(self, lhs), paren(self, rhs)),
             Expr::Or(lhs, rhs) => write!(f, "{} | {}", paren(self, lhs), paren(self, rhs)),
