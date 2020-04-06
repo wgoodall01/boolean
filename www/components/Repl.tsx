@@ -1,6 +1,7 @@
 import * as React from "react";
 import { useState } from "react";
 import { useCompiled } from "../js/compiled";
+import Input from "./Input";
 
 interface Cell {
   input: string;
@@ -10,6 +11,13 @@ interface Cell {
 export default function Repl() {
   const compiled = useCompiled();
   const [cells, setCells] = useState<Cell[]>([{ input: "" }]);
+  const [focusInd, setFocusInd] = useState<number>(0);
+
+  // TODO: ripout
+  if (typeof window !== "undefined") {
+    // @ts-ignore
+    window.setFocusInd = setFocusInd;
+  }
 
   if (compiled == null) {
     return <pre>repl loading...</pre>;
@@ -21,27 +29,28 @@ export default function Repl() {
     return newCells;
   }
 
-  const changeHandler = (ind: number) => (
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => setCells(updateCell(ind, c => ({ ...c, input: e.target.value })));
+  const changeHandler = (ind: number) => (expr: string) =>
+    setCells(updateCell(ind, c => ({ ...c, input: expr })));
 
-  const keyPressHandler = (ind: number) => (
-    e: React.KeyboardEvent<HTMLInputElement>
-  ) => {
-    if (e.key == "Enter") {
-      // Evaluate the indexed cell
-      let cells = updateCell(ind, c => ({
-        ...c,
-        output: compiled.evalStr(c.input)
-      }));
+  const submitHandler = (ind: number) => (expr: string) => {
+    // Evaluate the indexed cell
+    let cells = updateCell(ind, c => ({
+      ...c,
+      output: compiled.evalStr(c.input.split("#")[0])
+    }));
 
-      // If we're the last cell, append one
-      if (ind == cells.length - 1 && cells[ind].input !== "") {
-        cells.push({ input: "" });
-      }
-
-      setCells(cells);
+    // Ignore empty cells.
+    if (cells[ind].input == "") {
+      return;
     }
+
+    // If we're the last cell, append one
+    if (ind == cells.length - 1) {
+      cells.push({ input: "" });
+    }
+
+    setCells(cells);
+    setFocusInd(e => e + 1); // Increment the focus index
   };
 
   return (
@@ -51,21 +60,7 @@ export default function Repl() {
           margin-bottom: 1rem;
         }
 
-        .input {
-          margin-bottom: 0.5rem;
-          padding: 0;
-          border: 0;
-          font-weight: bold;
-          background-color: rgba(0, 0, 0, 0.05);
-        }
-
-        .input:focus {
-          background-color: black;
-          color: white;
-        }
-
-        .output,
-        .input {
+        .output {
           padding: 0.5rem;
           width: 100%;
           display: block;
@@ -73,12 +68,13 @@ export default function Repl() {
       `}</style>
       {cells.map((cell, ind) => (
         <div key={ind} className="cell">
-          <input
-            type="text"
+          <Input
+            value={cells[ind].input}
             onChange={changeHandler(ind)}
-            onKeyPress={keyPressHandler(ind)}
-            className="input"
-            autoFocus
+            onSubmit={submitHandler(ind)}
+            focus={ind == focusInd}
+            onFocus={() => setFocusInd(ind)}
+            alwaysShowExamples={ind == cells.length - 1}
           />
           {cell.output == null ? null : (
             <div className="output">{cell.output}</div>
