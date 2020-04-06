@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 const autocompletes = `
 Table expr var1 ... varN
 Satisfy expr
+With expr assumptions
 Debug expr
 Inert expr
 `.trim();
@@ -11,6 +12,7 @@ Inert expr
 const examples = `
 (a & b) | a                 # Simplify an expression
 Table (a & (b | c))         # Generate truth tables in disjunctive normal form
+With (a | b & c) (a & !b)   # Substitute in concrete assumptions
 Satisfy (a & (b | c))       # Find values which satisfy the expression
 Satisfy (Table (a | b & c)) # Combine expressions
 Debug (a & b | c & d)       # Print the parsed AST

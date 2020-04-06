@@ -213,6 +213,43 @@ impl Expr {
                         .fold1(or)
                         .unwrap_or_else(|| expr.clone())
                 }
+                "With" => {
+                    if args.len() != 2 {
+                        return error(vec!["BadUsage", "InvalidArgCount"]);
+                    }
+
+                    let mut expr: Expr = args[0].eval();
+
+                    let mut replacements: Vec<(String, bool)> = Vec::new();
+                    let mut assumptions: Vec<Rc<Expr>> = vec![args[1].clone()];
+
+                    // Convert the expressions of `assumptions` into a list of concrete values
+                    while let Some(truth) = assumptions.pop() {
+                        match truth.as_ref() {
+                            Expr::Var(name) => {
+                                replacements.push((name.clone(), true));
+                            }
+                            Expr::And(a, b) => {
+                                assumptions.push(a.clone());
+                                assumptions.push(b.clone());
+                            }
+                            Expr::Not(negated) => match negated.as_ref() {
+                                Expr::Var(name) => {
+                                    replacements.push((name.clone(), false));
+                                }
+                                _ => return error(vec!["BadUsage", "MalformedAssumptionNegated"]),
+                            },
+                            _ => return error(vec!["BadUsage", "MalformedAssumption"]),
+                        }
+                    }
+
+                    // Apply the replacements
+                    for repl in replacements {
+                        expr = expr.substitute(&repl.0, &repl.1.into());
+                    }
+
+                    expr.eval()
+                }
                 "Satisfy" => {
                     if args.len() != 1 {
                         return error(vec!["BadUsage"]);
